@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Image from "next/image"
-import { Search, Download, Mail, Phone, Globe, Plus, Minus } from "lucide-react"
+import { Search, Download, Mail, Phone, Globe, Plus, Minus, Grid3X3, List, DollarSign } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -14,12 +14,28 @@ import { Textarea } from "@/components/ui/textarea"
 import { supabase } from "@/lib/supabase"
 import { ProductWithImages } from "@/lib/database.types"
 
-// Dinamik kategoriler Supabase'den gelecek
+// Currency formatters
+const formatPrice = (price: number, currency: string) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(price)
+}
+
+// EUR/USD exchange rate (you might want to fetch this from an API)
+const USD_TO_EUR_RATE = 0.85
 
 function ProductRow({
   product,
   onAddToInquiry,
-}: { product: ProductWithImages; onAddToInquiry: (product: ProductWithImages, quantity: number) => void }) {
+  showCurrency,
+}: { 
+  product: ProductWithImages; 
+  onAddToInquiry: (product: ProductWithImages, quantity: number) => void;
+  showCurrency: "usd" | "eur" | "both";
+}) {
   const [inquiryQuantity, setInquiryQuantity] = useState(product.series?.pieces_per_case || 1)
   const [showImagePreview, setShowImagePreview] = useState(false)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
@@ -90,8 +106,25 @@ function ProductRow({
             </div>
 
             <div className="bg-gradient-to-r from-sage-100 to-sage-200 rounded-lg p-3 text-center border border-sage-200">
-              <div className="text-xs text-sage-700 mb-1">PRICE (USD)</div>
-              <div className="text-xl font-bold text-sage-900">${(product.price_per_piece_usd || product.price_per_piece || 0).toFixed(2)}</div>
+              <div className="text-xs text-sage-700 mb-1">PRICE</div>
+              {showCurrency === "both" ? (
+                <div className="space-y-1">
+                  <div className="text-lg font-bold text-sage-900">
+                    {formatPrice(product.price_per_piece_usd || product.price_per_piece || 0, 'USD')}
+                  </div>
+                  <div className="text-sm font-semibold text-sage-700">
+                    {formatPrice((product.price_per_piece_usd || product.price_per_piece || 0) * USD_TO_EUR_RATE, 'EUR')}
+                  </div>
+                </div>
+              ) : showCurrency === "eur" ? (
+                <div className="text-xl font-bold text-sage-900">
+                  {formatPrice((product.price_per_piece_usd || product.price_per_piece || 0) * USD_TO_EUR_RATE, 'EUR')}
+                </div>
+              ) : (
+                <div className="text-xl font-bold text-sage-900">
+                  {formatPrice(product.price_per_piece_usd || product.price_per_piece || 0, 'USD')}
+                </div>
+              )}
             </div>
           </div>
 
@@ -124,12 +157,12 @@ function ProductRow({
                   <Plus className="h-3 w-3" />
                 </Button>
               </div>
-              <Button
-                onClick={() => onAddToInquiry(product, inquiryQuantity)}
-                className="bg-gradient-to-r from-sage-600 to-sage-700 hover:from-sage-700 hover:to-sage-800 text-white px-6 py-2 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-200"
-              >
-                Add to Inquiry
-              </Button>
+                          <Button
+              onClick={() => onAddToInquiry(product, inquiryQuantity)}
+              className="bg-gradient-to-r from-sage-600 to-sage-700 hover:from-sage-700 hover:to-sage-800 text-white px-6 py-2 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-200 active:scale-95 active:bg-gradient-to-r active:from-emerald-600 active:to-emerald-700"
+            >
+              Add to Inquiry
+            </Button>
             </div>
           </div>
         </div>
@@ -150,9 +183,24 @@ function ProductRow({
                   <span className="bg-sage-100/80 backdrop-blur-sm text-sage-700 px-3 py-1 rounded-full border border-sage-200">
                     {product.series?.name || 'Product Series'}
                   </span>
-                  <span className="bg-sage-600/90 backdrop-blur-sm text-white px-3 py-1 rounded-full">
-                    ${(product.price_per_piece_usd || product.price_per_piece || 0).toFixed(2)} USD
-                  </span>
+                                      {showCurrency === "both" ? (
+                      <div className="flex gap-2">
+                        <span className="bg-sage-600/90 backdrop-blur-sm text-white px-3 py-1 rounded-full">
+                          {formatPrice(product.price_per_piece_usd || product.price_per_piece || 0, 'USD')}
+                        </span>
+                        <span className="bg-sage-500/80 backdrop-blur-sm text-white px-3 py-1 rounded-full">
+                          {formatPrice((product.price_per_piece_usd || product.price_per_piece || 0) * USD_TO_EUR_RATE, 'EUR')}
+                        </span>
+                      </div>
+                    ) : showCurrency === "eur" ? (
+                      <span className="bg-sage-600/90 backdrop-blur-sm text-white px-3 py-1 rounded-full">
+                        {formatPrice((product.price_per_piece_usd || product.price_per_piece || 0) * USD_TO_EUR_RATE, 'EUR')}
+                      </span>
+                    ) : (
+                      <span className="bg-sage-600/90 backdrop-blur-sm text-white px-3 py-1 rounded-full">
+                        {formatPrice(product.price_per_piece_usd || product.price_per_piece || 0, 'USD')}
+                      </span>
+                    )}
                 </div>
               </div>
               <button
@@ -228,7 +276,24 @@ function ProductRow({
               </div>
               <div>
                 <p className="text-sage-600 text-sm mb-1">Unit Price</p>
-                <p className="text-3xl font-bold text-green-600">${(product.price_per_piece_usd || product.price_per_piece || 0).toFixed(2)}</p>
+                {showCurrency === "both" ? (
+                  <div className="space-y-1">
+                    <p className="text-2xl font-bold text-green-600">
+                      {formatPrice(product.price_per_piece_usd || product.price_per_piece || 0, 'USD')}
+                    </p>
+                    <p className="text-lg font-semibold text-green-500">
+                      {formatPrice((product.price_per_piece_usd || product.price_per_piece || 0) * USD_TO_EUR_RATE, 'EUR')}
+                    </p>
+                  </div>
+                ) : showCurrency === "eur" ? (
+                  <p className="text-3xl font-bold text-green-600">
+                    {formatPrice((product.price_per_piece_usd || product.price_per_piece || 0) * USD_TO_EUR_RATE, 'EUR')}
+                  </p>
+                ) : (
+                  <p className="text-3xl font-bold text-green-600">
+                    {formatPrice(product.price_per_piece_usd || product.price_per_piece || 0, 'USD')}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -239,7 +304,7 @@ function ProductRow({
                   onAddToInquiry(product, product.series?.pieces_per_case || 1)
                   setShowImagePreview(false)
                 }}
-                className="bg-gradient-to-r from-sage-600 to-sage-700 hover:from-sage-700 hover:to-sage-800 text-white px-8 py-3 text-lg font-medium shadow-xl hover:shadow-2xl transition-all duration-200"
+                className="bg-gradient-to-r from-sage-600 to-sage-700 hover:from-sage-700 hover:to-sage-800 text-white px-8 py-3 text-lg font-medium shadow-xl hover:shadow-2xl transition-all duration-200 active:scale-95 active:bg-gradient-to-r active:from-emerald-600 active:to-emerald-700"
               >
                 Add to Inquiry
               </Button>
@@ -514,14 +579,339 @@ function InquiryDialog({ inquiryItems, onRemoveItem, onUpdateQuantity, onClearIn
   )
 }
 
+function ProductCard({ 
+  product, 
+  onAddToInquiry, 
+  showCurrency 
+}: { 
+  product: ProductWithImages; 
+  onAddToInquiry: (product: ProductWithImages, quantity: number) => void;
+  showCurrency: "usd" | "eur" | "both";
+}) {
+  const [inquiryQuantity, setInquiryQuantity] = useState(product.series?.pieces_per_case || 1)
+  const [showImagePreview, setShowImagePreview] = useState(false)
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+
+  return (
+    <div className="bg-white rounded-2xl shadow-lg border border-sage-100 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] relative overflow-hidden">
+      {/* Product Image - Ana odak */}
+      <div 
+        className="relative h-64 bg-gradient-to-br from-sage-50 to-sage-100 p-4 cursor-pointer group"
+        onClick={() => {
+          setCurrentImageIndex(0)
+          setShowImagePreview(true)
+        }}
+      >
+        <div className="w-full h-full relative transition-transform duration-700 ease-out group-hover:scale-110">
+          <Image 
+            src={product.product_images?.[0]?.image_url || "/placeholder.svg"} 
+            alt={product.name} 
+            fill 
+            className="object-contain drop-shadow-lg transition-all duration-500 group-hover:drop-shadow-2xl"
+            quality={100}
+            unoptimized={false}
+            priority={false}
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            style={{ 
+              imageRendering: 'high-quality',
+              WebkitImageRendering: 'high-quality',
+              msInterpolationMode: 'bicubic'
+            }}
+          />
+        </div>
+        
+        {/* Image count indicator */}
+        {product.product_images && product.product_images.length > 1 && (
+          <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full">
+            {product.product_images.length} images
+          </div>
+        )}
+
+        {/* Hover overlay */}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300 pointer-events-none"></div>
+        
+        {/* Preview label */}
+        <div className="absolute bottom-2 left-2 right-2 text-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <span className="text-xs text-sage-700 bg-white/90 px-2 py-1 rounded-full backdrop-blur-sm">
+            Click to preview
+          </span>
+        </div>
+      </div>
+
+      {/* Product Info */}
+      <div className="p-4">
+        <div className="mb-3">
+          <h3 className="text-lg font-bold text-sage-900 mb-1 line-clamp-2">{product.name}</h3>
+          <p className="text-sage-600 text-sm mb-1 line-clamp-1">{product.catalog_description || ''}</p>
+          <p className="text-sage-500 text-xs">{product.series?.name || ''}</p>
+        </div>
+
+        {/* Price - Prominent */}
+        <div className="bg-gradient-to-r from-sage-100 to-sage-200 rounded-lg p-3 text-center border border-sage-200 mb-3">
+          {showCurrency === "both" ? (
+            <div className="space-y-1">
+              <div className="text-lg font-bold text-sage-900">
+                {formatPrice(product.price_per_piece_usd || product.price_per_piece || 0, 'USD')}
+              </div>
+              <div className="text-sm font-semibold text-sage-700">
+                {formatPrice((product.price_per_piece_usd || product.price_per_piece || 0) * USD_TO_EUR_RATE, 'EUR')}
+              </div>
+            </div>
+          ) : showCurrency === "eur" ? (
+            <div className="text-xl font-bold text-sage-900">
+              {formatPrice((product.price_per_piece_usd || product.price_per_piece || 0) * USD_TO_EUR_RATE, 'EUR')}
+            </div>
+          ) : (
+            <div className="text-xl font-bold text-sage-900">
+              {formatPrice(product.price_per_piece_usd || product.price_per_piece || 0, 'USD')}
+            </div>
+          )}
+        </div>
+
+        {/* Quick Info */}
+        <div className="grid grid-cols-2 gap-2 mb-3 text-xs text-sage-600">
+          <div>Units/Case: <span className="font-semibold text-sage-800">{product.series?.pieces_per_case || 1}</span></div>
+          <div>Weight: <span className="font-semibold text-sage-800">{product.series?.net_weight_kg_per_piece || 'N/A'} kg</span></div>
+        </div>
+
+        {/* Action */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setInquiryQuantity(Math.max(product.series?.pieces_per_case || 1, inquiryQuantity - (product.series?.pieces_per_case || 1)))}
+              className="px-2 h-7 text-sage-600 hover:bg-sage-50"
+            >
+              <Minus className="h-3 w-3" />
+            </Button>
+            <span className="px-2 py-1 text-sm font-semibold min-w-[2rem] text-center">{inquiryQuantity}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setInquiryQuantity(inquiryQuantity + (product.series?.pieces_per_case || 1))}
+              className="px-2 h-7 text-sage-600 hover:bg-sage-50"
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
+          </div>
+          <Button
+            onClick={() => onAddToInquiry(product, inquiryQuantity)}
+            size="sm"
+            className="bg-gradient-to-r from-sage-600 to-sage-700 hover:from-sage-700 hover:to-sage-800 text-white px-4 py-2 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-200 active:scale-95 active:bg-gradient-to-r active:from-emerald-600 active:to-emerald-700"
+          >
+            Add
+          </Button>
+        </div>
+      </div>
+
+      {/* Same Image Preview Modal as ProductRow */}
+      <Dialog open={showImagePreview} onOpenChange={setShowImagePreview}>
+        <DialogContent className="max-w-[98vw] w-[98vw] h-[98vh] p-0 overflow-hidden bg-white/95 backdrop-blur-xl border border-sage-200/50 shadow-2xl">
+          <DialogTitle className="sr-only">{product.name} - Product Preview</DialogTitle>
+
+          {/* Header with product info */}
+          <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-white/90 via-white/80 to-transparent backdrop-blur-sm p-6 border-b border-sage-200/30">
+            <div className="flex items-start justify-between">
+              <div>
+                <h1 className="text-3xl font-bold mb-2 text-sage-900">{product.name}</h1>
+                <p className="text-sage-600 text-lg mb-2">{product.catalog_description}</p>
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="bg-sage-100/80 backdrop-blur-sm text-sage-700 px-3 py-1 rounded-full border border-sage-200">
+                    {product.series?.name || 'Product Series'}
+                  </span>
+                  {showCurrency === "both" ? (
+                    <div className="flex gap-2">
+                      <span className="bg-sage-600/90 backdrop-blur-sm text-white px-3 py-1 rounded-full">
+                        {formatPrice(product.price_per_piece_usd || product.price_per_piece || 0, 'USD')}
+                      </span>
+                      <span className="bg-sage-500/80 backdrop-blur-sm text-white px-3 py-1 rounded-full">
+                        {formatPrice((product.price_per_piece_usd || product.price_per_piece || 0) * USD_TO_EUR_RATE, 'EUR')}
+                      </span>
+                    </div>
+                  ) : showCurrency === "eur" ? (
+                    <span className="bg-sage-600/90 backdrop-blur-sm text-white px-3 py-1 rounded-full">
+                      {formatPrice((product.price_per_piece_usd || product.price_per_piece || 0) * USD_TO_EUR_RATE, 'EUR')}
+                    </span>
+                  ) : (
+                    <span className="bg-sage-600/90 backdrop-blur-sm text-white px-3 py-1 rounded-full">
+                      {formatPrice(product.price_per_piece_usd || product.price_per_piece || 0, 'USD')}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setShowImagePreview(false)}
+                className="text-sage-400 hover:text-sage-600 text-2xl font-light transition-colors bg-white/50 hover:bg-white/80 backdrop-blur-sm w-10 h-10 rounded-full flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+
+          {/* Main image area */}
+          <div className="relative w-full h-full flex items-center justify-center p-8 bg-gradient-to-br from-sage-50/30 to-sage-100/20">
+            <div className="relative max-w-[85vw] max-h-[85vh] w-full h-full bg-white/40 backdrop-blur-sm rounded-2xl p-8 border border-sage-200/30">
+              <Image 
+                src={product.product_images?.[currentImageIndex]?.image_url || product.product_images?.[0]?.image_url || "/placeholder.svg"} 
+                alt={product.name} 
+                fill 
+                className="object-contain drop-shadow-2xl cursor-zoom-in hover:scale-105 transition-transform duration-500"
+                quality={100}
+                unoptimized={false}
+                priority={true}
+                sizes="95vw"
+                style={{ 
+                  imageRendering: 'high-quality',
+                  WebkitImageRendering: 'high-quality',
+                  msInterpolationMode: 'bicubic'
+                }}
+              />
+            </div>
+
+            {/* Image navigation arrows */}
+            {product.product_images && product.product_images.length > 1 && (
+              <>
+                <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
+                  <button 
+                    onClick={() => setCurrentImageIndex(prev => prev > 0 ? prev - 1 : product.product_images.length - 1)}
+                    className="bg-white/80 backdrop-blur-sm hover:bg-white/90 text-sage-600 p-3 rounded-full transition-all duration-200 border border-sage-200 shadow-lg hover:shadow-xl"
+                  >
+                    ←
+                  </button>
+                </div>
+                <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                  <button 
+                    onClick={() => setCurrentImageIndex(prev => prev < product.product_images.length - 1 ? prev + 1 : 0)}
+                    className="bg-white/80 backdrop-blur-sm hover:bg-white/90 text-sage-600 p-3 rounded-full transition-all duration-200 border border-sage-200 shadow-lg hover:shadow-xl"
+                  >
+                    →
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Bottom info panel */}
+          <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-white/90 via-white/80 to-transparent backdrop-blur-sm p-6 border-t border-sage-200/30">
+            <div className="grid grid-cols-5 gap-6 text-center">
+              <div>
+                <p className="text-sage-600 text-sm mb-1">Barcode</p>
+                <p className="font-mono text-lg text-sage-800">{product.barcode || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sage-600 text-sm mb-1">Units per Case</p>
+                <p className="text-2xl font-bold text-sage-900">{product.series?.pieces_per_case || 1}</p>
+              </div>
+              <div>
+                <p className="text-sage-600 text-sm mb-1">Weight per Unit</p>
+                <p className="text-xl font-semibold text-sage-800">{product.series?.net_weight_kg_per_piece || 'N/A'} kg</p>
+              </div>
+              <div>
+                <p className="text-sage-600 text-sm mb-1">Net Weight per Case</p>
+                <p className="text-xl font-semibold text-sage-800">{product.series?.net_weight_kg_per_case || 'N/A'} kg</p>
+              </div>
+              <div>
+                <p className="text-sage-600 text-sm mb-1">Unit Price</p>
+                {showCurrency === "both" ? (
+                  <div className="space-y-1">
+                    <p className="text-2xl font-bold text-green-600">
+                      {formatPrice(product.price_per_piece_usd || product.price_per_piece || 0, 'USD')}
+                    </p>
+                    <p className="text-lg font-semibold text-green-500">
+                      {formatPrice((product.price_per_piece_usd || product.price_per_piece || 0) * USD_TO_EUR_RATE, 'EUR')}
+                    </p>
+                  </div>
+                ) : showCurrency === "eur" ? (
+                  <p className="text-3xl font-bold text-green-600">
+                    {formatPrice((product.price_per_piece_usd || product.price_per_piece || 0) * USD_TO_EUR_RATE, 'EUR')}
+                  </p>
+                ) : (
+                  <p className="text-3xl font-bold text-green-600">
+                    {formatPrice(product.price_per_piece_usd || product.price_per_piece || 0, 'USD')}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center justify-center gap-4 mt-6">
+              <Button
+                onClick={() => {
+                  onAddToInquiry(product, product.series?.pieces_per_case || 1)
+                  setShowImagePreview(false)
+                }}
+                className="bg-gradient-to-r from-sage-600 to-sage-700 hover:from-sage-700 hover:to-sage-800 text-white px-8 py-3 text-lg font-medium shadow-xl hover:shadow-2xl transition-all duration-200 active:scale-95 active:bg-gradient-to-r active:from-emerald-600 active:to-emerald-700"
+              >
+                Add to Inquiry
+              </Button>
+              <Button
+                variant="outline"
+                className="border-2 border-sage-300 text-sage-700 hover:bg-sage-100 px-8 py-3 text-lg backdrop-blur-sm bg-white/50"
+              >
+                Download Image
+              </Button>
+              <Button
+                variant="outline"
+                className="border-2 border-sage-300 text-sage-700 hover:bg-sage-100 px-8 py-3 text-lg backdrop-blur-sm bg-white/50"
+              >
+                Share Product
+              </Button>
+            </div>
+          </div>
+
+          {/* Image thumbnails */}
+          {product.product_images && product.product_images.length > 1 && (
+            <div className="absolute left-8 bottom-24 z-10">
+              <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+                {product.product_images.map((image, index) => (
+                  <div 
+                    key={image.id}
+                    onClick={() => setCurrentImageIndex(index)}
+                    className={`w-16 h-16 backdrop-blur-sm rounded-lg overflow-hidden shadow-lg cursor-pointer transition-all duration-200 ${
+                      index === currentImageIndex 
+                        ? 'bg-white/90 border-2 border-sage-500 scale-110' 
+                        : 'bg-white/70 border border-sage-300 hover:bg-white/80'
+                    }`}
+                  >
+                    <Image 
+                      src={image.image_url} 
+                      alt={`Thumbnail ${index + 1}`} 
+                      width={64} 
+                      height={64} 
+                      className="object-contain w-full h-full"
+                      quality={100}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Image info indicator */}
+          <div className="absolute top-20 right-8 z-10 text-sage-500 text-sm bg-white/70 backdrop-blur-sm px-3 py-1 rounded-full border border-sage-200">
+            {product.product_images && product.product_images.length > 1 
+              ? `${currentImageIndex + 1}/${product.product_images.length} • ESC to close`
+              : 'Click image to zoom • ESC to close'
+            }
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
 export default function OlivosCatalog() {
   const [products, setProducts] = useState<ProductWithImages[]>([])
   const [categories, setCategories] = useState<string[]>(["All"])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All")
-
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list")
+  const [showCurrency, setShowCurrency] = useState<"usd" | "eur" | "both">("usd")
   const [inquiryItems, setInquiryItems] = useState<any[]>([])
+  const [isAddingToCart, setIsAddingToCart] = useState(false)
+  const [justAdded, setJustAdded] = useState(false)
 
   // Supabase'den ürünleri çek
   useEffect(() => {
@@ -597,16 +987,30 @@ export default function OlivosCatalog() {
   })
 
   const handleAddToInquiry = (product: ProductWithImages, quantity: number) => {
-    const existingItem = inquiryItems.find((item) => item.product.id === product.id)
-    if (existingItem) {
-      setInquiryItems(
-        inquiryItems.map((item) =>
-          item.product.id === product.id ? { ...item, quantity: item.quantity + quantity } : item,
-        ),
-      )
-    } else {
-      setInquiryItems([...inquiryItems, { product, quantity }])
-    }
+    // Animasyon başlat
+    setIsAddingToCart(true)
+    
+    setTimeout(() => {
+      const existingItem = inquiryItems.find((item) => item.product.id === product.id)
+      if (existingItem) {
+        setInquiryItems(
+          inquiryItems.map((item) =>
+            item.product.id === product.id ? { ...item, quantity: item.quantity + quantity } : item,
+          ),
+        )
+      } else {
+        setInquiryItems([...inquiryItems, { product, quantity }])
+      }
+      
+      // Başarı animasyonu
+      setIsAddingToCart(false)
+      setJustAdded(true)
+      
+      // 2 saniye sonra normal renge dön
+      setTimeout(() => {
+        setJustAdded(false)
+      }, 2000)
+    }, 500) // 0.5 saniye animasyon
   }
 
   const handleRemoveFromInquiry = (productId: string) => {
@@ -694,6 +1098,54 @@ export default function OlivosCatalog() {
                 </SelectContent>
               </Select>
 
+              {/* View Mode Toggle */}
+              <div className="flex items-center border border-sage-300 rounded-lg overflow-hidden">
+                <Button
+                  variant={viewMode === "list" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode("list")}
+                  className={`rounded-none px-3 h-8 ${viewMode === "list" ? "bg-sage-600 text-white" : "text-sage-600 hover:bg-sage-50"}`}
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === "grid" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode("grid")}
+                  className={`rounded-none px-3 h-8 ${viewMode === "grid" ? "bg-sage-600 text-white" : "text-sage-600 hover:bg-sage-50"}`}
+                >
+                  <Grid3X3 className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Currency Toggle */}
+              <div className="flex items-center border border-sage-300 rounded-lg overflow-hidden">
+                <Button
+                  variant={showCurrency === "usd" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setShowCurrency("usd")}
+                  className={`rounded-none px-3 h-8 text-xs ${showCurrency === "usd" ? "bg-sage-600 text-white" : "text-sage-600 hover:bg-sage-50"}`}
+                >
+                  USD
+                </Button>
+                <Button
+                  variant={showCurrency === "eur" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setShowCurrency("eur")}
+                  className={`rounded-none px-3 h-8 text-xs ${showCurrency === "eur" ? "bg-sage-600 text-white" : "text-sage-600 hover:bg-sage-50"}`}
+                >
+                  EUR
+                </Button>
+                <Button
+                  variant={showCurrency === "both" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setShowCurrency("both")}
+                  className={`rounded-none px-3 h-8 text-xs ${showCurrency === "both" ? "bg-sage-600 text-white" : "text-sage-600 hover:bg-sage-50"}`}
+                >
+                  USD+EUR
+                </Button>
+              </div>
+
             </div>
             <div className="flex items-center gap-3">
               <Button variant="outline" size="sm" className="border-sage-300 text-sage-700 bg-transparent">
@@ -702,7 +1154,19 @@ export default function OlivosCatalog() {
               </Button>
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button className="bg-sage-600 hover:bg-sage-700">Inquiry List ({inquiryItems.length})</Button>
+                  <Button 
+                    className={`transition-all duration-500 transform ${
+                      isAddingToCart 
+                        ? "bg-amber-500 hover:bg-amber-600 scale-110 animate-pulse" 
+                        : justAdded 
+                          ? "bg-emerald-600 hover:bg-emerald-700 scale-105 shadow-lg shadow-emerald-200" 
+                          : inquiryItems.length > 0 
+                            ? "bg-sage-700 hover:bg-sage-800 shadow-md" 
+                            : "bg-sage-600 hover:bg-sage-700"
+                    }`}
+                  >
+                    {isAddingToCart ? "Adding..." : justAdded ? "Added!" : "Inquiry List"} ({inquiryItems.length})
+                  </Button>
                 </DialogTrigger>
                 <InquiryDialog
                   inquiryItems={inquiryItems}
@@ -718,11 +1182,29 @@ export default function OlivosCatalog() {
 
       {/* Product Catalog */}
       <div className="container mx-auto px-6 py-8">
-        <div className="space-y-1 overflow-visible">
-          {filteredProducts.map((product) => (
-            <ProductRow key={product.id} product={product} onAddToInquiry={handleAddToInquiry} />
-          ))}
-        </div>
+        {viewMode === "list" ? (
+          <div className="space-y-1 overflow-visible">
+            {filteredProducts.map((product) => (
+              <ProductRow 
+                key={product.id} 
+                product={product} 
+                onAddToInquiry={handleAddToInquiry}
+                showCurrency={showCurrency}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredProducts.map((product) => (
+              <ProductCard 
+                key={product.id} 
+                product={product} 
+                onAddToInquiry={handleAddToInquiry}
+                showCurrency={showCurrency}
+              />
+            ))}
+          </div>
+        )}
 
         {filteredProducts.length === 0 && (
           <div className="text-center py-12">
