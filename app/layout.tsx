@@ -4,9 +4,9 @@ import { GeistMono } from 'geist/font/mono'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.dev',
+  title: 'Olivos Product List 2025',
+  description: 'Professional product catalog for Olivos soap and cosmetics with Supabase integration',
+  generator: 'Next.js',
 }
 
 export default function RootLayout({
