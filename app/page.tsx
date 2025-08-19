@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import { Search, Download, Mail, Phone, Globe, Plus, Minus, Grid3X3, List, DollarSign } from "lucide-react"
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -26,6 +28,100 @@ const formatPrice = (price: number, currency: string) => {
 
 // EUR/USD exchange rate (you might want to fetch this from an API)
 const USD_TO_EUR_RATE = 0.85
+
+// PDF Export Function
+const exportToPDF = (products: ProductWithImages[], showCurrency: "usd" | "eur" | "both") => {
+  const doc = new jsPDF()
+  
+  // Header
+  doc.setFontSize(20)
+  doc.setTextColor(55, 65, 81) // sage-700
+  doc.text('Olivos Product Catalog 2025', 20, 30)
+  
+  doc.setFontSize(12)
+  doc.setTextColor(107, 114, 128) // gray-500
+  doc.text(`Generated on ${new Date().toLocaleDateString()}`, 20, 45)
+  doc.text(`Total Products: ${products.length}`, 20, 55)
+  
+  // Currency info
+  let currencyText = ""
+  if (showCurrency === "usd") currencyText = "All prices in USD"
+  else if (showCurrency === "eur") currencyText = "All prices in EUR"
+  else currencyText = "Prices shown in USD and EUR"
+  doc.text(currencyText, 20, 65)
+  
+  // Prepare table data
+  const tableData = products.map((product, index) => {
+    const usdPrice = product.price_per_piece_usd || product.price_per_piece || 0
+    const eurPrice = usdPrice * USD_TO_EUR_RATE
+    
+    let priceText = ""
+    if (showCurrency === "usd") priceText = `$${usdPrice.toFixed(2)}`
+    else if (showCurrency === "eur") priceText = `€${eurPrice.toFixed(2)}`
+    else priceText = `$${usdPrice.toFixed(2)} / €${eurPrice.toFixed(2)}`
+    
+    return [
+      index + 1,
+      product.name,
+      product.series?.name || 'N/A',
+      product.barcode || 'N/A',
+      product.series?.pieces_per_case || 1,
+      `${product.series?.net_weight_kg_per_piece || 'N/A'} kg`,
+      priceText
+    ]
+  })
+  
+  // Table
+  const tableColumns = [
+    '#',
+    'Product Name',
+    'Series',
+    'Barcode',
+    'Units/Case',
+    'Weight',
+    'Price'
+  ]
+  
+  autoTable(doc, {
+    head: [tableColumns],
+    body: tableData,
+    startY: 80,
+    styles: {
+      fontSize: 8,
+      cellPadding: 3,
+    },
+    headStyles: {
+      fillColor: [82, 109, 130], // sage-600
+      textColor: [255, 255, 255],
+      fontStyle: 'bold'
+    },
+    alternateRowStyles: {
+      fillColor: [248, 250, 252] // gray-50
+    },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 15 }, // #
+      1: { cellWidth: 50 }, // Product Name
+      2: { cellWidth: 35 }, // Series
+      3: { cellWidth: 25 }, // Barcode
+      4: { halign: 'center', cellWidth: 20 }, // Units/Case
+      5: { halign: 'center', cellWidth: 20 }, // Weight
+      6: { halign: 'right', cellWidth: 25 } // Price
+    }
+  })
+  
+  // Footer
+  const pageCount = (doc as any).internal.getNumberOfPages()
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i)
+    doc.setFontSize(8)
+    doc.setTextColor(107, 114, 128)
+    doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width - 30, doc.internal.pageSize.height - 10)
+    doc.text('Olivos Soap & Cosmetics', 20, doc.internal.pageSize.height - 10)
+  }
+  
+  // Save
+  doc.save(`olivos-catalog-${new Date().toISOString().split('T')[0]}.pdf`)
+}
 
 function ProductRow({
   product,
@@ -1148,7 +1244,12 @@ export default function OlivosCatalog() {
 
             </div>
             <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" className="border-sage-300 text-sage-700 bg-transparent">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => exportToPDF(filteredProducts, showCurrency)}
+                className="border-sage-300 text-sage-700 bg-transparent hover:bg-sage-50 transition-colors"
+              >
                 <Download className="h-4 w-4 mr-2" />
                 Export PDF
               </Button>
