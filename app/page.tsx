@@ -50,7 +50,7 @@ const exportToPDF = (products: ProductWithImages[], showCurrency: "usd" | "eur" 
   else currencyText = "Prices shown in USD and EUR"
   doc.text(currencyText, 20, 65)
   
-  // Prepare table data
+  // Prepare table data with images
   const tableData = products.map((product, index) => {
     const usdPrice = product.price_per_piece_usd || product.price_per_piece || 0
     const eurPrice = usdPrice * USD_TO_EUR_RATE
@@ -63,7 +63,6 @@ const exportToPDF = (products: ProductWithImages[], showCurrency: "usd" | "eur" 
     return [
       index + 1,
       product.name,
-      product.series?.name || 'N/A',
       product.barcode || 'N/A',
       product.series?.pieces_per_case || 1,
       `${product.series?.net_weight_kg_per_piece || 'N/A'} kg`,
@@ -75,16 +74,28 @@ const exportToPDF = (products: ProductWithImages[], showCurrency: "usd" | "eur" 
   const tableColumns = [
     '#',
     'Product Name',
-    'Series',
+    'Image',
     'Barcode',
     'Units/Case',
     'Weight',
     'Price'
   ]
   
+  // Add table with product images in first column
   autoTable(doc, {
     head: [tableColumns],
-    body: tableData,
+    body: tableData.map((row, index) => {
+      const product = products[index]
+      return [
+        index + 1,
+        { content: row[1], styles: { cellWidth: 50 } }, // Product Name
+        product.product_images?.[0]?.image_url || '', // Image URL for custom rendering
+        row[2], // Barcode
+        row[3], // Units/Case
+        row[4], // Weight
+        row[5]  // Price
+      ]
+    }),
     startY: 80,
     styles: {
       fontSize: 8,
@@ -100,12 +111,33 @@ const exportToPDF = (products: ProductWithImages[], showCurrency: "usd" | "eur" 
     },
     columnStyles: {
       0: { halign: 'center', cellWidth: 15 }, // #
-      1: { cellWidth: 50 }, // Product Name
-      2: { cellWidth: 35 }, // Series
-      3: { cellWidth: 25 }, // Barcode
+      1: { cellWidth: 45 }, // Product Name
+      2: { cellWidth: 25, halign: 'center' }, // Image
+      3: { cellWidth: 30 }, // Barcode
       4: { halign: 'center', cellWidth: 20 }, // Units/Case
       5: { halign: 'center', cellWidth: 20 }, // Weight
-      6: { halign: 'right', cellWidth: 25 } // Price
+      6: { halign: 'center', cellWidth: 30 } // Price (centered)
+    },
+    // Custom cell renderer for images
+    didParseCell: function(data) {
+      if (data.column.index === 2 && data.cell.raw) {
+        try {
+          // Add image to the cell
+          doc.addImage(
+            data.cell.raw,
+            'JPEG',
+            data.cell.x + 2,
+            data.cell.y + 2,
+            20,
+            20
+          )
+          // Clear the text content since we're using an image
+          data.cell.text = ''
+        } catch (error) {
+          console.warn('Could not add image for product')
+          data.cell.text = 'No Image'
+        }
+      }
     }
   })
   
