@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Image from "next/image"
-import { Search, Download, Mail, Phone, Globe, Plus, Minus, Grid3X3, List, DollarSign } from "lucide-react"
+import { Search, Download, Mail, Phone, Globe, Plus, Minus, Grid3X3, List, DollarSign, ShoppingCart } from "lucide-react"
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { Button } from "@/components/ui/button"
@@ -1919,6 +1919,42 @@ export default function OlivosCatalog() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Floating Cart Button - Fixed Position */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button 
+              size="lg"
+              className={`rounded-full w-16 h-16 shadow-2xl transition-all duration-500 transform hover:scale-110 ${
+                isAddingToCart 
+                  ? "bg-amber-500 hover:bg-amber-600 animate-pulse" 
+                  : justAdded 
+                    ? "bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-200" 
+                    : inquiryItems.length > 0 
+                      ? "bg-sage-700 hover:bg-sage-800 shadow-xl" 
+                      : "bg-sage-600 hover:bg-sage-700"
+              }`}
+            >
+              <div className="flex flex-col items-center">
+                <ShoppingCart className="h-6 w-6" />
+                {inquiryItems.length > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-6 w-6 flex items-center justify-center font-bold">
+                    {inquiryItems.length}
+                  </span>
+                )}
+              </div>
+            </Button>
+          </DialogTrigger>
+          <InquiryDialog
+            inquiryItems={inquiryItems}
+            onRemoveItem={handleRemoveFromInquiry}
+            onUpdateQuantity={handleUpdateInquiryQuantity}
+            onClearInquiry={handleClearInquiry}
+            onSubmitSuccess={handleOrderSubmitSuccess}
+          />
+        </Dialog>
       </div>
 
       {/* Order Summary Modal */}
