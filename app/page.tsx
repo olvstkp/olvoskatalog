@@ -30,129 +30,355 @@ const formatPrice = (price: number, currency: string) => {
 const USD_TO_EUR_RATE = 0.85
 
 // PDF Export Function
-const exportToPDF = (products: ProductWithImages[], showCurrency: "usd" | "eur" | "both") => {
-  const doc = new jsPDF()
-  
-  // Header
-  doc.setFontSize(20)
-  doc.setTextColor(55, 65, 81) // sage-700
-  doc.text('Olivos Product Catalog 2025', 20, 30)
-  
-  doc.setFontSize(12)
-  doc.setTextColor(107, 114, 128) // gray-500
-  doc.text(`Generated on ${new Date().toLocaleDateString()}`, 20, 45)
-  doc.text(`Total Products: ${products.length}`, 20, 55)
-  
-  // Currency info
-  let currencyText = ""
-  if (showCurrency === "usd") currencyText = "All prices in USD"
-  else if (showCurrency === "eur") currencyText = "All prices in EUR"
-  else currencyText = "Prices shown in USD and EUR"
-  doc.text(currencyText, 20, 65)
-  
-  // Prepare table data with images
-  const tableData = products.map((product, index) => {
-    const usdPrice = product.price_per_piece_usd || product.price_per_piece || 0
-    const eurPrice = usdPrice * USD_TO_EUR_RATE
+const exportToPDF = async (products: ProductWithImages[], showCurrency: "usd" | "eur" | "both") => {
+  try {
+    console.log('PDF oluşturuluyor...', { productCount: products.length, currency: showCurrency })
     
-    let priceText = ""
-    if (showCurrency === "usd") priceText = `$${usdPrice.toFixed(2)}`
-    else if (showCurrency === "eur") priceText = `€${eurPrice.toFixed(2)}`
-    else priceText = `$${usdPrice.toFixed(2)} / €${eurPrice.toFixed(2)}`
+    const doc = new jsPDF()
     
-    return [
-      index + 1,
-      product.name,
-      product.barcode || 'N/A',
-      product.series?.pieces_per_case || 1,
-      `${product.series?.net_weight_kg_per_piece || 'N/A'} kg`,
-      priceText
-    ]
-  })
+    // Professional Header
+    const pageWidth = doc.internal.pageSize.width
+    
+    // Main Title - Centered
+    doc.setFontSize(24)
+    doc.setTextColor(30, 41, 59) // slate-800
+    doc.setFont('helvetica', 'bold')
+    const titleText = 'OLIVOS PRODUCT CATALOG 2025'
+    const titleWidth = doc.getTextWidth(titleText)
+    doc.text(titleText, (pageWidth - titleWidth) / 2, 25)
+    
+    // Subtitle - Centered
+    doc.setFontSize(12)
+    doc.setTextColor(71, 85, 105) // slate-600
+    doc.setFont('helvetica', 'normal')
+    const subtitleText = 'Professional Soap & Skincare Products'
+    const subtitleWidth = doc.getTextWidth(subtitleText)
+    doc.text(subtitleText, (pageWidth - subtitleWidth) / 2, 35)
+    
+    // Divider line
+    doc.setDrawColor(203, 213, 225) // slate-300
+    doc.setLineWidth(0.5)
+    doc.line(20, 42, pageWidth - 20, 42)
+    
+    // Info section
+    doc.setFontSize(10)
+    doc.setTextColor(100, 116, 139) // slate-500
+    
+    const today = new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    })
+    
+    doc.text(`Generated: ${today}`, 20, 52)
+    doc.text(`Total Products: ${products.length}`, 20, 60)
+    
+    // Currency info - right aligned
+    let currencyText = ""
+    if (showCurrency === "usd") currencyText = "All prices in USD"
+    else if (showCurrency === "eur") currencyText = "All prices in EUR"
+    else currencyText = "Prices shown in USD and EUR"
+    
+    const currencyWidth = doc.getTextWidth(currencyText)
+    doc.text(currencyText, pageWidth - 20 - currencyWidth, 52)
+    
+    // Right side bilgiler kaldırıldı
   
-  // Table
-  const tableColumns = [
-    '#',
-    'Product Name',
-    'Image',
-    'Barcode',
-    'Units/Case',
-    'Weight',
-    'Price'
-  ]
-  
-  // Add table with product images in first column
-  autoTable(doc, {
-    head: [tableColumns],
-    body: tableData.map((row, index) => {
-      const product = products[index]
-      return [
-        index + 1,
-        { content: row[1], styles: { cellWidth: 50 } }, // Product Name
-        product.product_images?.[0]?.image_url || '', // Image URL for custom rendering
-        row[2], // Barcode
-        row[3], // Units/Case
-        row[4], // Weight
-        row[5]  // Price
-      ]
-    }),
-    startY: 80,
-    styles: {
-      fontSize: 8,
-      cellPadding: 3,
-    },
-    headStyles: {
-      fillColor: [82, 109, 130], // sage-600
-      textColor: [255, 255, 255],
-      fontStyle: 'bold'
-    },
-    alternateRowStyles: {
-      fillColor: [248, 250, 252] // gray-50
-    },
-    columnStyles: {
-      0: { halign: 'center', cellWidth: 15 }, // #
-      1: { cellWidth: 45 }, // Product Name
-      2: { cellWidth: 25, halign: 'center' }, // Image
-      3: { cellWidth: 30 }, // Barcode
-      4: { halign: 'center', cellWidth: 20 }, // Units/Case
-      5: { halign: 'center', cellWidth: 20 }, // Weight
-      6: { halign: 'center', cellWidth: 30 } // Price (centered)
-    },
-    // Custom cell renderer for images
-    didParseCell: function(data) {
-      if (data.column.index === 2 && data.cell.raw) {
-        try {
-          // Add image to the cell
-          doc.addImage(
-            data.cell.raw,
-            'JPEG',
-            data.cell.x + 2,
-            data.cell.y + 2,
-            20,
-            20
-          )
-          // Clear the text content since we're using an image
-          data.cell.text = ''
-        } catch (error) {
-          console.warn('Could not add image for product')
-          data.cell.text = 'No Image'
+    // Helper function to load main product image as base64
+    const getImageAsBase64 = async (imageUrl: string): Promise<string | null> => {
+      try {
+        if (!imageUrl || typeof imageUrl !== 'string') {
+          console.warn('Geçersiz görsel URL')
+          return null
         }
+
+        console.log('🔄 Ana görsel yükleniyor:', imageUrl)
+        
+        const response = await fetch(imageUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'image/webp,image/avif,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+          },
+          // timeout için AbortController kullanabiliriz
+          signal: AbortSignal.timeout(10000) // 10 saniye timeout
+        })
+        
+        if (!response.ok) {
+          console.warn(`❌ HTTP ${response.status}: ${response.statusText}`)
+          return null
+        }
+        
+        const blob = await response.blob()
+        
+        // Dosya boyutu kontrolü (max 5MB)
+        if (blob.size > 5 * 1024 * 1024) {
+          console.warn('⚠️ Görsel çok büyük (>5MB):', blob.size)
+          return null
+        }
+        
+        // Sadece image formatlarını kabul et
+        if (!blob.type.startsWith('image/')) {
+          console.warn('❌ Geçersiz dosya formatı:', blob.type)
+          return null
+        }
+        
+        return new Promise((resolve) => {
+          const reader = new FileReader()
+          reader.onload = () => {
+            const result = reader.result as string
+            if (result && result.startsWith('data:image/')) {
+              console.log(`✅ Base64 dönüştürüldü: ${blob.type}, ${(blob.size/1024).toFixed(1)}KB`)
+              resolve(result)
+            } else {
+              console.warn('❌ Base64 dönüşümü geçersiz')
+              resolve(null)
+            }
+          }
+          reader.onerror = () => {
+            console.error('❌ FileReader hatası')
+            resolve(null)
+          }
+          reader.readAsDataURL(blob)
+        })
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.name === 'TimeoutError') {
+            console.warn('⏱️ Görsel yükleme timeout (10s)')
+          } else {
+            console.error('❌ Görsel yükleme hatası:', error.message)
+          }
+        } else {
+          console.error('❌ Bilinmeyen görsel yükleme hatası:', error)
+        }
+        return null
       }
     }
-  })
   
-  // Footer
-  const pageCount = (doc as any).internal.getNumberOfPages()
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i)
-    doc.setFontSize(8)
-    doc.setTextColor(107, 114, 128)
-    doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width - 30, doc.internal.pageSize.height - 10)
-    doc.text('Olivos Soap & Cosmetics', 20, doc.internal.pageSize.height - 10)
+    // Prepare table data with main images only
+    console.log('Tablo verileri hazırlanıyor...')
+    
+    const tableData: (string | null | number)[][] = []
+    for (let index = 0; index < products.length; index++) {
+      const product = products[index]
+      const usdPrice = product.price_per_piece_usd || product.price_per_piece || 0
+      const eurPrice = usdPrice * USD_TO_EUR_RATE
+      
+      let priceText = ""
+      if (showCurrency === "usd") priceText = `$${usdPrice.toFixed(2)}`
+      else if (showCurrency === "eur") priceText = `€${eurPrice.toFixed(2)}`
+      else priceText = `$${usdPrice.toFixed(2)} / €${eurPrice.toFixed(2)}`
+      
+      // Ana görsel varsa yükle, yoksa null bırak
+      let productImage = null
+      if (product.product_images && product.product_images.length > 0) {
+        const mainImageUrl = product.product_images[0].image_url
+        console.log(`Ürün ${index + 1} (${product.name}) ana görseli yükleniyor...`)
+        try {
+          productImage = await getImageAsBase64(mainImageUrl)
+          if (productImage) {
+            console.log(`✅ Ürün ${index + 1} görseli başarıyla yüklendi`)
+          } else {
+            console.log(`⚠️ Ürün ${index + 1} görseli yüklenemedi, boş bırakılıyor`)
+          }
+        } catch (error) {
+          console.log(`❌ Ürün ${index + 1} görsel yükleme hatası:`, error)
+          productImage = null
+        }
+      } else {
+        console.log(`📷 Ürün ${index + 1} (${product.name}) için görsel yok`)
+      }
+      
+      tableData.push([
+        productImage, // Ana görsel veya null
+        product.name,
+        product.barcode || 'N/A',
+        product.series?.pieces_per_case || 1,
+        `${product.series?.net_weight_kg_per_piece || 'N/A'}kg`,
+        priceText
+      ])
+    }
+    
+    console.log(`📊 Tablo verileri hazır: ${tableData.length} ürün`)
+    const withImages = tableData.filter(row => row[0] !== null).length
+    console.log(`🖼️ Görselli ürün sayısı: ${withImages}/${tableData.length}`)
+  
+    // Table
+    const tableColumns = [
+      '#',
+      'Image',
+      'Product Name',
+      'Barcode',
+      'Units/Case',
+      'Weight',
+      'Price'
+    ]
+    
+    // Table with images in first column
+    const simpleTableColumns = [
+      'Image',
+      'Product Name',
+      'Barcode',
+      'Units/Case',
+      'Weight',
+      'Price'
+    ]
+    
+    const simpleTableData = tableData.map(row => [
+      '', // Empty string for image column - will be filled by didDrawCell
+      row[1], // Product Name
+      row[2], // Barcode
+      row[3], // Units/Case
+      row[4], // Weight
+      row[5]  // Price
+    ])
+    
+    console.log('Tablo oluşturuluyor...')
+    
+    // Tablo genişliğini hesapla ve sayfa ortasına yerleştir
+    const tableWidth = 36 + 60 + 28 + 24 + 24 + 32 // Toplam kolon genişlikleri (resim kolonu büyütüldü)
+    const currentPageWidth = doc.internal.pageSize.width
+    const startX = (currentPageWidth - tableWidth) / 2 // Tabloyu ortala
+    
+    autoTable(doc, {
+      head: [simpleTableColumns],
+      body: simpleTableData,
+      startY: 75,
+      margin: { 
+        left: startX, 
+        right: startX,
+        bottom: 40 // Footer için daha fazla alt boşluk
+      },
+      pageBreak: 'auto',
+      showHead: 'everyPage', // Her sayfada header göster
+      tableWidth: 'auto',
+      styles: {
+        fontSize: 10,
+        cellPadding: 5,
+        minCellHeight: 34, // Daha büyük resimler için daha yüksek satır
+        valign: 'middle',
+        lineColor: [200, 200, 200],
+        lineWidth: 0.5,
+        halign: 'center'
+      },
+      headStyles: {
+        fillColor: [75, 85, 99], // Daha koyu gri (slate-600)
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 11,
+        cellPadding: 6,
+        halign: 'center',
+        valign: 'middle'
+      },
+      alternateRowStyles: {
+        fillColor: [249, 250, 251] // Daha açık gri (gray-50)
+      },
+      columnStyles: {
+        0: { cellWidth: 36, halign: 'center' }, // Image - daha da geniş (32→36)
+        1: { cellWidth: 60, valign: 'middle', halign: 'left' }, // Product Name - biraz daraltıldı (62→60)
+        2: { cellWidth: 28, halign: 'center' }, // Barcode
+        3: { halign: 'center', cellWidth: 24, valign: 'middle' }, // Units/Case
+        4: { halign: 'center', cellWidth: 24, valign: 'middle' }, // Weight
+        5: { halign: 'center', cellWidth: 32, valign: 'middle' } // Price - her zaman ortala
+      },
+      didDrawCell: (data: any) => {
+        // Add product images in first column (only main images)
+        if (data.section === 'body' && data.column.index === 0) {
+          const rowIndex = data.row.index
+          
+          // Güvenlik kontrolleri
+          if (rowIndex >= 0 && rowIndex < tableData.length) {
+            const imageData = tableData[rowIndex][0] // Ana görsel
+            
+            // Sadece geçerli base64 image data'sı varsa ekle
+            if (imageData && 
+                typeof imageData === 'string' && 
+                imageData.startsWith('data:image/') &&
+                imageData.length > 50) { // Minimum boyut kontrolü
+              
+              try {
+                // Format detection
+                let format = 'JPEG'
+                if (imageData.includes('data:image/png')) format = 'PNG'
+                else if (imageData.includes('data:image/jpeg') || imageData.includes('data:image/jpg')) format = 'JPEG'
+                else if (imageData.includes('data:image/webp')) format = 'WEBP'
+                
+                // Daha büyük resim boyutu ve ortalama
+                const cellWidth = data.cell.width
+                const cellHeight = data.cell.height
+                const maxImageSize = 30 // Resim boyutunu büyüttük: 24px → 30px
+                const imageSize = Math.min(cellWidth - 4, cellHeight - 4, maxImageSize)
+                
+                // Resmi hücrede ortala
+                const centerX = data.cell.x + (cellWidth - imageSize) / 2
+                const centerY = data.cell.y + (cellHeight - imageSize) / 2
+                
+                doc.addImage(
+                  imageData,
+                  format,
+                  centerX,
+                  centerY,
+                  imageSize,
+                  imageSize
+                )
+                
+                console.log(`✅ PDF'e görsel eklendi: Ürün ${rowIndex + 1}, Format: ${format}`)
+              } catch (addImageError) {
+                const errorMsg = addImageError instanceof Error ? addImageError.message : 'Bilinmeyen hata'
+                console.warn(`⚠️ PDF'e görsel eklenemedi (Ürün ${rowIndex + 1}):`, errorMsg)
+                // Hata olsa da devam et, görsel olmadan tablo oluştur
+              }
+            } else {
+              // Görsel yok, boş hücre bırak
+              console.log(`📷 Ürün ${rowIndex + 1}: Görsel yok, boş bırakılıyor`)
+            }
+          }
+        }
+      }
+    })
+  
+    // Professional Footer - Güvenli pozisyonlama
+    const pageCount = (doc as any).internal.getNumberOfPages()
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i)
+      
+      const pageHeight = doc.internal.pageSize.height
+      const footerPageWidth = doc.internal.pageSize.width
+      const footerY = pageHeight - 25 // Footer için daha fazla boşluk
+      const footerLineY = pageHeight - 32 // Çizgi için daha yüksek pozisyon
+      
+      // Footer line - daha yukarıda
+      doc.setDrawColor(203, 213, 225) // slate-300
+      doc.setLineWidth(0.3)
+      doc.line(20, footerLineY, footerPageWidth - 20, footerLineY)
+      
+      // Footer text - güvenli alanda
+      doc.setFontSize(8) // Biraz daha küçük font
+      doc.setTextColor(100, 116, 139) // slate-500
+      doc.setFont('helvetica', 'normal')
+      
+      // Left side - Company info (sadece şirket adı)
+      doc.text('OLIVOS Soap & Cosmetics', 20, footerY)
+      
+      // Right side - Page number
+      const pageText = `Page ${i} of ${pageCount}`
+      const pageTextWidth = doc.getTextWidth(pageText)
+      doc.text(pageText, footerPageWidth - 20 - pageTextWidth, footerY)
+      
+      // Center - Website (alt satırda)
+              const websiteText = 'www.olivos.com.tr'
+      const websiteWidth = doc.getTextWidth(websiteText)
+      doc.text(websiteText, (footerPageWidth - websiteWidth) / 2, footerY + 8)
+    }
+  
+    // Save
+    console.log('PDF kaydediliyor...')
+    doc.save(`olivos-catalog-${new Date().toISOString().split('T')[0]}.pdf`)
+    console.log('PDF başarıyla kaydedildi!')
+    
+  } catch (error) {
+    console.error('PDF export sırasında hata:', error)
+    throw error
   }
-  
-  // Save
-  doc.save(`olivos-catalog-${new Date().toISOString().split('T')[0]}.pdf`)
 }
 
 function ProductRow({
@@ -190,10 +416,9 @@ function ProductRow({
               priority={false}
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
               style={{ 
-                imageRendering: 'high-quality',
-                WebkitImageRendering: 'high-quality',
+                imageRendering: 'auto',
                 msInterpolationMode: 'bicubic'
-              }}
+              } as React.CSSProperties}
             />
           </div>
           
@@ -221,17 +446,17 @@ function ProductRow({
             <div className="bg-sage-50 rounded-lg p-3 text-center border border-sage-100">
               <div className="text-xs text-sage-600 mb-1">BARCODE</div>
               <div className="text-sm font-mono text-sage-800">{product.barcode || 'N/A'}</div>
-            </div>
+          </div>
 
             <div className="bg-sage-50 rounded-lg p-3 text-center border border-sage-100">
               <div className="text-xs text-sage-600 mb-1">UNIT/CASE</div>
               <div className="text-lg font-bold text-sage-800">{product.series?.pieces_per_case || 1}</div>
-            </div>
+          </div>
 
             <div className="bg-sage-50 rounded-lg p-3 text-center border border-sage-100">
               <div className="text-xs text-sage-600 mb-1">WEIGHT</div>
               <div className="text-sm font-semibold text-sage-800">{product.series?.net_weight_kg_per_piece || 'N/A'} kg</div>
-            </div>
+          </div>
 
             <div className="bg-gradient-to-r from-sage-100 to-sage-200 rounded-lg p-3 text-center border border-sage-200">
               <div className="text-xs text-sage-700 mb-1">PRICE</div>
@@ -239,7 +464,7 @@ function ProductRow({
                 <div className="space-y-1">
                   <div className="text-lg font-bold text-sage-900">
                     {formatPrice(product.price_per_piece_usd || product.price_per_piece || 0, 'USD')}
-                  </div>
+          </div>
                   <div className="text-sm font-semibold text-sage-700">
                     {formatPrice((product.price_per_piece_usd || product.price_per_piece || 0) * USD_TO_EUR_RATE, 'EUR')}
                   </div>
@@ -253,47 +478,47 @@ function ProductRow({
                   {formatPrice(product.price_per_piece_usd || product.price_per_piece || 0, 'USD')}
                 </div>
               )}
-            </div>
-          </div>
+        </div>
+      </div>
 
           {/* Inquiry Section - Alt kısımda */}
           <div className="flex items-center justify-between pt-4 border-t border-sage-100">
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-xs text-sage-600 border-sage-300">
                 {product.series?.name || 'Product'}
-              </Badge>
-            </div>
+            </Badge>
+          </div>
             
-            <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3">
               <span className="text-xs text-sage-600 font-medium">Quantity:</span>
               <div className="flex items-center border border-sage-300 rounded-lg bg-white overflow-hidden">
-                <Button
-                  variant="ghost"
-                  size="sm"
+              <Button
+                variant="ghost"
+                size="sm"
                   onClick={() => setInquiryQuantity(Math.max(product.series?.pieces_per_case || 1, inquiryQuantity - (product.series?.pieces_per_case || 1)))}
                   className="px-3 h-8 text-sage-600 hover:bg-sage-50"
-                >
-                  <Minus className="h-3 w-3" />
-                </Button>
+              >
+                <Minus className="h-3 w-3" />
+              </Button>
                 <span className="px-4 py-1 text-sm font-semibold min-w-[3rem] text-center border-x border-sage-200 bg-sage-50">{inquiryQuantity}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
+              <Button
+                variant="ghost"
+                size="sm"
                   onClick={() => setInquiryQuantity(inquiryQuantity + (product.series?.pieces_per_case || 1))}
                   className="px-3 h-8 text-sage-600 hover:bg-sage-50"
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
-              </div>
-                          <Button
+              >
+                <Plus className="h-3 w-3" />
+              </Button>
+            </div>
+            <Button
               onClick={() => onAddToInquiry(product, inquiryQuantity)}
               className="bg-gradient-to-r from-sage-600 to-sage-700 hover:from-sage-700 hover:to-sage-800 text-white px-6 py-2 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-200 active:scale-95 active:bg-gradient-to-r active:from-emerald-600 active:to-emerald-700"
             >
               Add to Inquiry
             </Button>
-            </div>
           </div>
         </div>
+      </div>
       </div>
 
       {/* Advanced Image Preview Modal */}
@@ -353,10 +578,9 @@ function ProductRow({
                 priority={true}
                 sizes="95vw"
                 style={{ 
-                  imageRendering: 'high-quality',
-                  WebkitImageRendering: 'high-quality',
+                  imageRendering: 'auto',
                   msInterpolationMode: 'bicubic'
-                }}
+                } as React.CSSProperties}
               />
             </div>
 
@@ -741,10 +965,9 @@ function ProductCard({
             priority={false}
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             style={{ 
-              imageRendering: 'high-quality',
-              WebkitImageRendering: 'high-quality',
+              imageRendering: 'auto',
               msInterpolationMode: 'bicubic'
-            }}
+            } as React.CSSProperties}
           />
         </div>
         
@@ -890,10 +1113,9 @@ function ProductCard({
                 priority={true}
                 sizes="95vw"
                 style={{ 
-                  imageRendering: 'high-quality',
-                  WebkitImageRendering: 'high-quality',
+                  imageRendering: 'auto',
                   msInterpolationMode: 'bicubic'
-                }}
+                } as React.CSSProperties}
               />
             </div>
 
@@ -1040,6 +1262,7 @@ export default function OlivosCatalog() {
   const [inquiryItems, setInquiryItems] = useState<any[]>([])
   const [isAddingToCart, setIsAddingToCart] = useState(false)
   const [justAdded, setJustAdded] = useState(false)
+  const [isExportingPDF, setIsExportingPDF] = useState(false)
 
   // Supabase'den ürünleri çek
   useEffect(() => {
@@ -1119,16 +1342,16 @@ export default function OlivosCatalog() {
     setIsAddingToCart(true)
     
     setTimeout(() => {
-      const existingItem = inquiryItems.find((item) => item.product.id === product.id)
-      if (existingItem) {
-        setInquiryItems(
-          inquiryItems.map((item) =>
-            item.product.id === product.id ? { ...item, quantity: item.quantity + quantity } : item,
-          ),
-        )
-      } else {
-        setInquiryItems([...inquiryItems, { product, quantity }])
-      }
+    const existingItem = inquiryItems.find((item) => item.product.id === product.id)
+    if (existingItem) {
+      setInquiryItems(
+        inquiryItems.map((item) =>
+          item.product.id === product.id ? { ...item, quantity: item.quantity + quantity } : item,
+        ),
+      )
+    } else {
+      setInquiryItems([...inquiryItems, { product, quantity }])
+    }
       
       // Başarı animasyonu
       setIsAddingToCart(false)
@@ -1167,7 +1390,21 @@ export default function OlivosCatalog() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sage-50 to-white">
+    <div className="min-h-screen bg-gradient-to-br from-sage-50 to-white relative">
+      {/* PDF Export Loading Overlay */}
+      {isExportingPDF && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 text-center max-w-md mx-4">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-sage-600 mx-auto mb-4"></div>
+            <h3 className="text-xl font-semibold text-sage-800 mb-2">Preparing Your PDF</h3>
+            <p className="text-sage-600 mb-4">Loading product images and generating catalog...</p>
+            <div className="w-full bg-sage-100 rounded-full h-2">
+              <div className="bg-sage-600 h-2 rounded-full animate-pulse"></div>
+            </div>
+            <p className="text-sm text-sage-500 mt-2">This may take a few moments</p>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-sage-200">
         <div className="container mx-auto px-6 py-6">
@@ -1181,14 +1418,6 @@ export default function OlivosCatalog() {
                 <div className="flex items-center gap-2">
                   <Globe className="h-4 w-4" />
                   <span>Worldwide Export</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  <span>export@olivos.com</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4" />
-                  <span>+90 212 555 0123</span>
                 </div>
               </div>
             </div>
@@ -1279,11 +1508,32 @@ export default function OlivosCatalog() {
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={() => exportToPDF(filteredProducts, showCurrency)}
-                className="border-sage-300 text-sage-700 bg-transparent hover:bg-sage-50 transition-colors"
+                onClick={async () => {
+                  try {
+                    setIsExportingPDF(true)
+                    console.log('PDF export başlatılıyor...')
+                    await exportToPDF(filteredProducts, showCurrency)
+                    console.log('PDF export tamamlandı!')
+                  } catch (error) {
+                    console.error('PDF export hatası:', error)
+                  } finally {
+                    setIsExportingPDF(false)
+                  }
+                }}
+                disabled={isExportingPDF}
+                className="border-sage-300 text-sage-700 bg-transparent hover:bg-sage-50 transition-colors disabled:opacity-50"
               >
+                {isExportingPDF ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-sage-600 mr-2"></div>
+                    Preparing PDF...
+                  </>
+                ) : (
+                  <>
                 <Download className="h-4 w-4 mr-2" />
                 Export PDF
+                  </>
+                )}
               </Button>
               <Dialog>
                 <DialogTrigger asChild>
@@ -1317,15 +1567,15 @@ export default function OlivosCatalog() {
       <div className="container mx-auto px-6 py-8">
         {viewMode === "list" ? (
           <div className="space-y-1 overflow-visible">
-            {filteredProducts.map((product) => (
+          {filteredProducts.map((product) => (
               <ProductRow 
                 key={product.id} 
                 product={product} 
                 onAddToInquiry={handleAddToInquiry}
                 showCurrency={showCurrency}
               />
-            ))}
-          </div>
+          ))}
+        </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProducts.map((product) => (
