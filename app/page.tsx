@@ -716,13 +716,13 @@ function ProductRow({
   )
 }
 
-function InquiryDialog({ inquiryItems, onRemoveItem, onUpdateQuantity, onClearInquiry }: any) {
-  const [companyName, setCompanyName] = useState("")
-  const [contactName, setContactName] = useState("")
-  const [email, setEmail] = useState("")
-  const [phone, setPhone] = useState("")
-  const [country, setCountry] = useState("")
-  const [message, setMessage] = useState("")
+function InquiryDialog({ inquiryItems, onRemoveItem, onUpdateQuantity, onClearInquiry, onSubmitSuccess }: any) {
+  const [companyName, setCompanyName] = useState("ABC Trading Company Ltd.")
+  const [contactName, setContactName] = useState("John Smith")
+  const [email, setEmail] = useState("john.smith@abctrading.com")
+  const [phone, setPhone] = useState("+1 (555) 123-4567")
+  const [country, setCountry] = useState("United States")
+  const [message, setMessage] = useState("Please provide detailed pricing for bulk orders. We are interested in establishing a long-term partnership for our retail chain.")
 
   const totalItems = inquiryItems.reduce((sum: number, item: any) => sum + item.quantity, 0)
   const estimatedValue = inquiryItems.reduce(
@@ -731,7 +731,7 @@ function InquiryDialog({ inquiryItems, onRemoveItem, onUpdateQuantity, onClearIn
   )
 
   const handleSubmitInquiry = () => {
-    console.log("Submitting inquiry:", {
+    const orderData = {
       company: companyName,
       contact: contactName,
       email,
@@ -741,8 +741,16 @@ function InquiryDialog({ inquiryItems, onRemoveItem, onUpdateQuantity, onClearIn
       items: inquiryItems,
       totalItems,
       estimatedValue,
-    })
-    alert("Your inquiry has been submitted successfully! We will contact you within 24 hours.")
+      orderDate: new Date().toLocaleDateString(),
+      orderNumber: `OLV-${Date.now()}`
+    }
+    
+    console.log("Submitting inquiry:", orderData)
+    
+    // Sipariş özetini göster
+    onSubmitSuccess(orderData)
+    
+    // Formu temizle
     onClearInquiry()
   }
 
@@ -928,6 +936,295 @@ function InquiryDialog({ inquiryItems, onRemoveItem, onUpdateQuantity, onClearIn
         </div>
       </div>
     </DialogContent>
+  )
+}
+
+// Order Summary Modal Component
+function OrderSummaryDialog({ orderData, isOpen, onClose }: { orderData: any, isOpen: boolean, onClose: () => void }) {
+  if (!orderData) return null
+
+  const downloadOrderSummaryPDF = async () => {
+    const doc = new jsPDF()
+    
+    // Header
+    doc.setFontSize(24)
+    doc.setTextColor(30, 41, 59)
+    doc.setFont('helvetica', 'bold')
+    const titleText = 'OLIVOS ORDER SUMMARY'
+    const titleWidth = doc.getTextWidth(titleText)
+    const pageWidth = doc.internal.pageSize.width
+    doc.text(titleText, (pageWidth - titleWidth) / 2, 25)
+    
+    // Order Info
+    doc.setFontSize(12)
+    doc.setTextColor(71, 85, 105)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Order Number: ${orderData.orderNumber}`, 20, 45)
+    doc.text(`Order Date: ${orderData.orderDate}`, 20, 55)
+    doc.text(`Status: Order Submitted Successfully`, 20, 65)
+    
+    // Divider
+    doc.setDrawColor(203, 213, 225)
+    doc.setLineWidth(0.5)
+    doc.line(20, 75, pageWidth - 20, 75)
+    
+    // Company Information
+    doc.setFontSize(14)
+    doc.setTextColor(30, 41, 59)
+    doc.setFont('helvetica', 'bold')
+    doc.text('COMPANY INFORMATION', 20, 90)
+    
+    doc.setFontSize(10)
+    doc.setTextColor(71, 85, 105)
+    doc.setFont('helvetica', 'normal')
+    let yPos = 105
+    doc.text(`Company: ${orderData.company}`, 20, yPos)
+    doc.text(`Contact Person: ${orderData.contact}`, 20, yPos + 10)
+    doc.text(`Email: ${orderData.email}`, 20, yPos + 20)
+    doc.text(`Phone: ${orderData.phone}`, 20, yPos + 30)
+    doc.text(`Country: ${orderData.country}`, 20, yPos + 40)
+    
+    // Products Section
+    yPos = 160
+    doc.setFontSize(14)
+    doc.setTextColor(30, 41, 59)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`ORDERED PRODUCTS (${orderData.items.length})`, 20, yPos)
+    
+    // Products Table
+    const tableData = orderData.items.map((item: any, index: number) => [
+      index + 1,
+      item.product.name,
+      item.quantity,
+      `$${(item.product.price_per_piece_usd || item.product.price_per_piece || 0).toFixed(2)}`,
+      `$${((item.product.price_per_piece_usd || item.product.price_per_piece || 0) * item.quantity).toFixed(2)}`,
+      item.product.series?.name || 'N/A'
+    ])
+    
+    const tableColumns = ['#', 'Product Name', 'Qty', 'Unit Price', 'Subtotal', 'Series']
+    
+    autoTable(doc, {
+      head: [tableColumns],
+      body: tableData,
+      startY: yPos + 10,
+      styles: {
+        fontSize: 9,
+        cellPadding: 3,
+        minCellHeight: 8
+      },
+      headStyles: {
+        fillColor: [75, 85, 99],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      alternateRowStyles: {
+        fillColor: [249, 250, 251]
+      },
+      columnStyles: {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 60 },
+        2: { cellWidth: 15, halign: 'center' },
+        3: { cellWidth: 25, halign: 'right' },
+        4: { cellWidth: 25, halign: 'right' },
+        5: { cellWidth: 30 }
+      }
+    })
+    
+    // Summary Box
+    const finalY = (doc as any).lastAutoTable.finalY + 20
+    
+    doc.setFillColor(75, 85, 99)
+    doc.rect(20, finalY, pageWidth - 40, 35, 'F')
+    
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text('ORDER SUMMARY', 25, finalY + 12)
+    
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Total Items: ${orderData.totalItems}`, 25, finalY + 22)
+    doc.text(`Estimated Value: $${orderData.estimatedValue.toFixed(2)}`, 25, finalY + 30)
+    
+    doc.text('Final pricing will be provided in our official quote', pageWidth - 25, finalY + 22, { align: 'right' })
+    
+    // Message
+    if (orderData.message) {
+      doc.setTextColor(71, 85, 105)
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.text('ADDITIONAL MESSAGE:', 20, finalY + 50)
+      
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      const splitMessage = doc.splitTextToSize(orderData.message, pageWidth - 40)
+      doc.text(splitMessage, 20, finalY + 60)
+    }
+    
+    // Footer
+    const footerY = doc.internal.pageSize.height - 20
+    doc.setFontSize(8)
+    doc.setTextColor(107, 114, 128)
+    doc.text('OLIVOS Soap & Cosmetics | www.olivos.com.tr', 20, footerY)
+    doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - 20, footerY, { align: 'right' })
+    
+    // Save
+    doc.save(`olivos-order-${orderData.orderNumber}.pdf`)
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-[100vw] max-h-[100vh] w-full h-full p-0 bg-gray-50 overflow-y-auto border-0">
+        <div className="min-h-full bg-gradient-to-br from-white to-gray-50 p-8">
+        <DialogHeader>
+          <div className="text-center">
+            <div className="mb-4">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <DialogTitle className="text-2xl font-bold text-green-700 mb-2">
+                Order Submitted Successfully! 🎉
+              </DialogTitle>
+              <p className="text-sage-600">
+                Thank you! We'll contact you within 24 hours with a detailed quote.
+              </p>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="max-w-4xl mx-auto space-y-8">
+          {/* Close Button */}
+          <div className="flex justify-end">
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-3xl font-light transition-colors bg-white/80 hover:bg-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Order Info */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-semibold text-sage-800">Order Number:</span>
+                <p className="text-sage-600 font-mono">{orderData.orderNumber}</p>
+              </div>
+              <div>
+                <span className="font-semibold text-sage-800">Order Date:</span>
+                <p className="text-sage-600">{orderData.orderDate}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Company Info */}
+          <div>
+            <h3 className="font-semibold text-sage-800 mb-4 text-lg">Company Information</h3>
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-medium text-sage-700">Company:</span>
+                  <p className="text-sage-600">{orderData.company}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-sage-700">Contact:</span>
+                  <p className="text-sage-600">{orderData.contact}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-sage-700">Email:</span>
+                  <p className="text-sage-600">{orderData.email}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-sage-700">Phone:</span>
+                  <p className="text-sage-600">{orderData.phone}</p>
+                </div>
+                <div className="md:col-span-2">
+                  <span className="font-medium text-sage-700">Country:</span>
+                  <p className="text-sage-600">{orderData.country}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Products */}
+          <div>
+            <h3 className="font-semibold text-sage-800 mb-4 text-lg">Ordered Products ({orderData.items.length})</h3>
+            <div className="space-y-4 max-h-80 overflow-y-auto bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              {orderData.items.map((item: any, index: number) => (
+                <div key={index} className="bg-white border border-sage-200 rounded-lg p-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-sage-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Image
+                        src={item.product.product_images?.[0]?.image_url || "/placeholder.svg"}
+                        alt={item.product.name}
+                        width={40}
+                        height={40}
+                        className="rounded object-contain"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-sage-900 truncate">{item.product.name}</h4>
+                      <p className="text-sm text-sage-600">{item.product.series?.name || 'N/A'}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="font-medium text-sage-900">{item.quantity} units</p>
+                      <p className="text-sm text-sage-600">
+                        ${((item.product.price_per_piece_usd || item.product.price_per_piece || 0) * item.quantity).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Order Summary */}
+          <div className="bg-sage-800 text-white rounded-lg p-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sage-100">Total Items: <span className="font-bold">{orderData.totalItems}</span></p>
+                <p className="text-sage-100">Estimated Value: <span className="font-bold text-xl">${orderData.estimatedValue.toFixed(2)}</span></p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-sage-300">Final pricing will be provided</p>
+                <p className="text-xs text-sage-300">in our official quote</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Message */}
+          {orderData.message && (
+            <div>
+              <h3 className="font-semibold text-sage-800 mb-2">Additional Message</h3>
+              <div className="bg-sage-50 border border-sage-200 rounded-lg p-3">
+                <p className="text-sage-700 text-sm">{orderData.message}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-4 pt-6 border-t border-gray-200">
+            <Button
+              onClick={downloadOrderSummaryPDF}
+              className="flex-1 bg-sage-600 hover:bg-sage-700 text-white py-3 rounded-lg shadow-lg hover:shadow-xl transition-all"
+            >
+              <Download className="w-5 h-5 mr-2" />
+              Download PDF Summary
+            </Button>
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="flex-1 border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-all"
+            >
+              Close
+            </Button>
+          </div>
+        </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -1263,6 +1560,8 @@ export default function OlivosCatalog() {
   const [isAddingToCart, setIsAddingToCart] = useState(false)
   const [justAdded, setJustAdded] = useState(false)
   const [isExportingPDF, setIsExportingPDF] = useState(false)
+  const [showOrderSummary, setShowOrderSummary] = useState(false)
+  const [orderSummaryData, setOrderSummaryData] = useState<any>(null)
 
   // Supabase'den ürünleri çek
   useEffect(() => {
@@ -1376,6 +1675,64 @@ export default function OlivosCatalog() {
 
   const handleClearInquiry = () => {
     setInquiryItems([])
+  }
+
+  const handleOrderSubmitSuccess = async (orderData: any) => {
+    try {
+      // Save order to Supabase
+      console.log('💾 Sipariş veritabanına kaydediliyor...')
+      
+      const { data: orderResult, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          order_number: orderData.orderNumber,
+          company_name: orderData.company,
+          contact_person: orderData.contact,
+          email: orderData.email,
+          phone: orderData.phone,
+          country: orderData.country,
+          additional_message: orderData.message,
+          total_items: orderData.totalItems,
+          estimated_value: orderData.estimatedValue,
+          currency: 'USD',
+          status: 'pending'
+        })
+        .select()
+        .single()
+
+      if (orderError) {
+        console.error('❌ Sipariş kaydetme hatası:', orderError)
+      } else {
+        console.log('✅ Sipariş başarıyla kaydedildi:', orderResult)
+        
+        // Save order items
+        if (orderResult && orderData.items.length > 0) {
+          const orderItems = orderData.items.map((item: any) => ({
+            order_id: orderResult.id,
+            product_id: item.product.id,
+            quantity: item.quantity,
+            unit_price: item.product.price_per_piece_usd || item.product.price_per_piece || 0,
+            total_price: (item.product.price_per_piece_usd || item.product.price_per_piece || 0) * item.quantity
+          }))
+
+          const { error: itemsError } = await supabase
+            .from('order_items')
+            .insert(orderItems)
+
+          if (itemsError) {
+            console.error('❌ Sipariş ürünleri kaydetme hatası:', itemsError)
+          } else {
+            console.log('✅ Sipariş ürünleri başarıyla kaydedildi')
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Database bağlantı hatası:', error)
+    }
+
+    // Show order summary modal
+    setOrderSummaryData(orderData)
+    setShowOrderSummary(true)
   }
 
   if (loading) {
@@ -1556,12 +1913,20 @@ export default function OlivosCatalog() {
                   onRemoveItem={handleRemoveFromInquiry}
                   onUpdateQuantity={handleUpdateInquiryQuantity}
                   onClearInquiry={handleClearInquiry}
+                  onSubmitSuccess={handleOrderSubmitSuccess}
                 />
               </Dialog>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Order Summary Modal */}
+      <OrderSummaryDialog
+        orderData={orderSummaryData}
+        isOpen={showOrderSummary}
+        onClose={() => setShowOrderSummary(false)}
+      />
 
       {/* Product Catalog */}
       <div className="container mx-auto px-6 py-8">
